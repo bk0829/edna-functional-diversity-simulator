@@ -522,7 +522,125 @@ if uploaded_file is not None:
                 "기능군 Shannon 지수에는 "
                 "뚜렷한 변화가 나타나지 않았습니다."
             )
+        st.subheader("🌍 5개 기후변화 시나리오 종합 비교")
 
+        comparison_rows = []
+
+        for scenario_name in BASE_WEIGHTS.keys():
+            scenario_result = run_simulation(
+                current_data,
+                scenario_name,
+            )
+
+            current_guild = (
+                scenario_result.groupby("기능군")[
+                    "현재 비율"
+                ].sum()
+            )
+
+            predicted_guild = (
+                scenario_result.groupby("기능군")[
+                    "예측 비율"
+                ].sum()
+            )
+
+            current_index = calculate_shannon(
+                current_guild
+            )
+
+            predicted_index = calculate_shannon(
+                predicted_guild
+            )
+
+            sensitive_before = (
+                scenario_result.loc[
+                    scenario_result["내성도"] == "민감종",
+                    "현재 비율",
+                ].sum()
+                * 100
+            )
+
+            sensitive_after = (
+                scenario_result.loc[
+                    scenario_result["내성도"] == "민감종",
+                    "예측 비율",
+                ].sum()
+                * 100
+            )
+
+            tolerant_before = (
+                scenario_result.loc[
+                    scenario_result["내성도"] == "내성종",
+                    "현재 비율",
+                ].sum()
+                * 100
+            )
+
+            tolerant_after = (
+                scenario_result.loc[
+                    scenario_result["내성도"] == "내성종",
+                    "예측 비율",
+                ].sum()
+                * 100
+            )
+
+            guild_change = (
+                predicted_guild
+                - current_guild
+            ) * 100
+
+            most_decreased_guild = (
+                guild_change.idxmin()
+            )
+
+            comparison_rows.append(
+                {
+                    "시나리오": scenario_name,
+                    "현재 Shannon": current_index,
+                    "예측 Shannon": predicted_index,
+                    "Shannon 변화": (
+                        predicted_index - current_index
+                    ),
+                    "민감종 변화(%p)": (
+                        sensitive_after - sensitive_before
+                    ),
+                    "내성종 변화(%p)": (
+                        tolerant_after - tolerant_before
+                    ),
+                    "가장 감소한 기능군": (
+                        most_decreased_guild
+                    ),
+                }
+            )
+
+        comparison_df = pd.DataFrame(
+            comparison_rows
+        ).sort_values(
+            "Shannon 변화"
+        )
+
+        st.dataframe(
+            comparison_df.round(3),
+            use_container_width=True,
+        )
+
+        chart_data = comparison_df.set_index(
+            "시나리오"
+        )[["현재 Shannon", "예측 Shannon"]]
+
+        st.bar_chart(chart_data)
+
+        lowest_scenario = comparison_df.iloc[0]
+
+        st.info(
+            f"기능군 Shannon 지수의 변화가 가장 낮게 나타난 "
+            f"시나리오는 **{lowest_scenario['시나리오']}**이며, "
+            f"변화량은 "
+            f"**{lowest_scenario['Shannon 변화']:+.3f}**입니다. "
+            f"이 시나리오에서 가장 크게 감소한 기능군은 "
+            f"**{lowest_scenario['가장 감소한 기능군']}**으로 "
+            f"예측되었습니다."
+        )
     except Exception as error:
         st.error(
             f"파일을 처리하지 못했습니다: {error}"
